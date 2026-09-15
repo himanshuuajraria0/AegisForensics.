@@ -1,0 +1,5 @@
+flask
+reportlab
+qrcode
+pywin32
+Pillow

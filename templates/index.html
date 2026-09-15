@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEGISFORENSICS // FORENSIC RECOVERY & NIST SANITIZER</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: #030504;
+      color: #00ff66;
+      background-image: 
+        linear-gradient(rgba(0, 255, 150, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 150, 0.035) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .hud-card {
+      background: rgba(6, 18, 19, 0.92);
+      border: 1px solid #1c5a4c;
+    }
+    @keyframes radarSweep {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .radar-beam {
+      transform-origin: 50% 50%;
+      animation: radarSweep 2.2s linear infinite;
+    }
+  </style>
+</head>
+<body class="p-6">
+
+  <!-- ==================== TOP MAIN VIEW ==================== -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT COLUMN -->
+    <div class="lg:col-span-4 space-y-6">
+      
+      <!-- TARGET INGESTION CARD -->
+      <div class="hud-card p-5 rounded-lg">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">TARGET STORAGE INGESTION</h2>
+        <select id="driveSelect" class="w-full bg-[#020503] border border-emerald-500/50 text-emerald-300 text-xs rounded p-2.5 outline-none mb-2 font-mono">
+          <option>disk_dump.raw [Mock Forensic Dump]</option>
+        </select>
+        <p class="text-[10px] text-emerald-600 tracking-wider">DIRECT BLOCK I/O IOCTL LAYER ACTIVE</p>
+
+        <!-- ACTION TOGGLE BUTTONS -->
+        <div class="grid grid-cols-2 gap-3 mt-5">
+          <button onclick="switchTab('recovery')" id="btnTabRecovery" class="border border-cyan-500 bg-cyan-950/40 text-cyan-300 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1">
+            <span>🔍 DATA RECOVERY</span>
+          </button>
+          <button onclick="switchTab('purge')" id="btnTabPurge" class="border border-red-900 bg-red-950/20 text-red-400 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1">
+            <span>⭕ DATA PURGING</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- RADAR HUD -->
+      <div class="hud-card p-5 rounded-lg flex flex-col items-center justify-center relative min-h-[220px]">
+        <span class="text-[10px] font-bold text-emerald-600 absolute top-3 left-4">RADAR SECTOR SCANNER</span>
+        <div id="radarContainer" class="relative w-36 h-36 flex items-center justify-center opacity-40 transition-opacity duration-300">
+          <div class="absolute w-36 h-36 rounded-full border border-emerald-700/40"></div>
+          <div class="absolute w-24 h-24 rounded-full border border-emerald-700/50"></div>
+          <div class="absolute w-12 h-12 rounded-full border border-emerald-700/60"></div>
+          <div class="absolute w-full h-[1px] bg-emerald-800/50"></div>
+          <div class="absolute h-full w-[1px] bg-emerald-800/50"></div>
+          <div id="radarSweepBeam" class="absolute w-36 h-36 rounded-full hidden radar-beam bg-gradient-to-tr from-transparent via-transparent to-emerald-500/30"></div>
+          <span id="radarStatusText" class="text-xs font-bold text-emerald-400 z-10">IDLE</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="lg:col-span-8 space-y-6">
+
+      <!-- 1. ADVANCED FILE CARVING & RECOVERY -->
+      <div class="hud-card p-5 rounded-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xs font-bold text-cyan-400 uppercase tracking-widest">ADVANCED FILE CARVING & RECOVERY</h2>
+          <button onclick="triggerCarve(false)" class="bg-cyan-950 border border-cyan-500 text-cyan-300 hover:bg-cyan-900 text-xs font-bold px-4 py-1.5 rounded transition-all">
+            EXECUTE SCAN
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-emerald-300 font-mono">
+            <thead class="border-b border-emerald-900/60 text-[10px] text-emerald-600 uppercase">
+              <tr>
+                <th class="py-2">TYPE</th>
+                <th>SECTOR OFFSET</th>
+                <th>PAYLOAD SIZE</th>
+                <th>CONFIDENCE</th>
+                <th>ENTROPY</th>
+                <th>ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="artifactTableBody" class="divide-y divide-emerald-900/30">
+              <tr>
+                <td colspan="6" class="py-6 text-center text-emerald-700 italic">No active scan dispatched on target media.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2. NIST SP 800-88 SECURE DATA ERASURE -->
+      <div class="border border-red-900/60 bg-[#0c0406] p-6 rounded-lg text-center">
+        <h2 class="text-xs font-bold text-red-500 uppercase tracking-widest mb-3">NIST SP 800-88 SECURE DATA ERASURE</h2>
+        <p class="text-xs text-red-400 max-w-xl mx-auto mb-4">
+          Select Protocol: <span class="font-bold">NIST SP 800-88 CLEAR</span> (Direct Low-Level Overwriting).<br>
+          This emulates physical drive destruction and is <span class="font-bold">NON-RECOVERABLE</span>.
+        </p>
+        <button onclick="triggerPurge()" class="border border-red-600 bg-red-950/60 hover:bg-red-900 text-red-300 font-bold text-xs tracking-widest py-3 px-8 rounded transition-all">
+          COMMENCE DESTRUCTIVE WIPE
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- CERTIFICATE BAR -->
+  <div class="mt-6 flex justify-between items-center bg-[#050b07] border border-emerald-900/60 p-4 rounded-lg">
+    <span class="text-xs font-bold text-emerald-400">GENERATE CERTIFIED REPORT (PDF)</span>
+    <button onclick="downloadReport()" class="bg-emerald-950 border border-emerald-500 text-emerald-300 hover:bg-emerald-900 text-xs font-bold px-4 py-2 rounded transition-all">
+      EXPORT AUDIT CERTIFICATE
+    </button>
+  </div>
+
+  <!-- TERMINAL LOGS -->
+  <div class="mt-4 bg-[#020503] border border-emerald-900/60 p-4 rounded-lg">
+    <div class="flex justify-between items-center mb-2 text-[10px] text-emerald-600 font-bold uppercase">
+      <span>LIVE LOW-LEVEL SECTOR INSPECTOR</span>
+      <span>RULE 65B LOGGING ACTIVE</span>
+    </div>
+    <div id="terminalStream" class="h-32 overflow-y-auto text-[11px] leading-relaxed text-emerald-400 font-mono space-y-1">
+      <p class="text-emerald-700">[SYS_INIT] Direct Block I/O Layer Initialized.</p>
+    </div>
+  </div>
+
+  <!-- ==================== SCROLL DOWN: ADVANCED FORENSIC EXTENSIONS ==================== -->
+  <div class="mt-12 pt-8 border-t border-emerald-900/40 space-y-6">
+    
+    <div class="flex items-center space-x-3 mb-2">
+      <span class="inline-block w-2 h-2 rounded-full bg-cyan-400"></span>
+      <h3 class="text-xs font-bold text-cyan-400 uppercase tracking-widest">ADVANCED CRYPTOGRAPHIC & ENTROPY EXTENSIONS</h3>
+    </div>
+
+    <!-- ENTROPY & FILE SHREDDER GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- SHANNON ENTROPY METER -->
+      <div class="hud-card p-5 rounded-lg flex flex-col justify-between">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-emerald-400 tracking-widest uppercase">SHANNON ENTROPY PROOF ENGINE</span>
+          <span id="entropyScore" class="text-xl font-black text-white">0.00</span>
+        </div>
+        <div class="w-full bg-emerald-950 h-3 rounded-full overflow-hidden my-3 border border-emerald-800">
+          <div id="entropyBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-700"></div>
+        </div>
+        <div class="text-[10px] text-emerald-600 flex justify-between font-bold">
+          <span>0.00 (ZERO PURGED)</span>
+          <span>7.99 (RAW ENCRYPTED)</span>
+        </div>
+      </div>
+
+      <!-- SELECTIVE FILE / FOLDER SHREDDER -->
+      <div class="hud-card p-5 rounded-lg">
+        <h2 class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">SELECTIVE TARGET FILE / FOLDER SHREDDER</h2>
+        <input type="text" id="targetPath" placeholder="C:\path\to\confidential_evidence.pdf" class="w-full bg-[#020503] border border-emerald-500/50 text-emerald-300 text-xs rounded p-2.5 outline-none mb-3 font-mono">
+        <button onclick="wipeFile()" class="w-full bg-red-950/50 border border-red-500 text-red-300 hover:bg-red-900/50 text-xs font-bold py-2 rounded transition-all">
+          EXECUTE PERMANENT FILE SHRED
+        </button>
+      </div>
+
+    </div>
+
+    <!-- DUAL HEX DIFF VIEWER -->
+    <div class="bg-[#050b07] border border-cyan-900/60 p-4 rounded-lg">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-xs font-bold text-cyan-400">SIDE-BY-SIDE DUAL HEX SECTOR DIFF INSPECTOR</span>
+        <button onclick="toggleHexInspector()" class="bg-cyan-950 border border-cyan-500 text-cyan-300 hover:bg-cyan-900 text-[10px] font-bold px-3 py-1 rounded">
+          TOGGLE HEX VIEW
+        </button>
+      </div>
+      <div id="hexDiffPanel" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-[10px] font-bold text-red-400 uppercase mb-1">PRE-WIPE SECTOR STREAM (EVIDENCE DETECTED)</div>
+          <pre id="preHexStream" class="bg-black/80 border border-red-900/40 p-2.5 rounded text-[10px] text-red-300 font-mono overflow-x-auto">00000000: FF D8 FF E0 00 10 4A 46  49 46 00 01 01 01 00 60  ......JFIF.....`&#10;00000010: 00 60 00 00 FF DB 00 43  00 41 75 74 68 65 6E 74  .`.....C.Authent&#10;00000020: 69 63 45 76 69 64 65 6E  63 65 50 61 79 6C 6F 61  icEvidencePayloa</pre>
+        </div>
+        <div>
+          <div class="text-[10px] font-bold text-emerald-400 uppercase mb-1">POST-PURGE SECTOR STREAM (NIST 0x00 ZEROED)</div>
+          <pre id="postHexStream" class="bg-black/80 border border-emerald-900/40 p-2.5 rounded text-[10px] text-emerald-300 font-mono overflow-x-auto">00000000: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................&#10;00000010: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................&#10;00000020: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................</pre>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- IN-APP FILE PREVIEW MODAL -->
+  <div id="previewModal" class="fixed inset-0 bg-black/85 hidden flex items-center justify-center z-50 p-4">
+    <div class="hud-card max-w-2xl w-full p-5 rounded-lg relative">
+      <div class="flex justify-between items-center border-b border-emerald-900/60 pb-3 mb-4">
+        <span id="previewTitle" class="text-xs font-bold text-cyan-400 font-mono">RECOVERED ARTIFACT PREVIEW</span>
+        <button onclick="closePreview()" class="text-emerald-500 hover:text-red-400 font-bold text-sm">✖ CLOSE</button>
+      </div>
+      <div id="previewContent" class="flex items-center justify-center max-h-[60vh] overflow-auto"></div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    async function loadDrives() {
+      const select = document.getElementById('driveSelect');
+      try {
+        const res = await fetch('/api/drives');
+        const data = await res.json();
+        select.innerHTML = '';
+        data.drives.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.device_id;
+          opt.innerText = d.label;
+          if (d.recommended) opt.selected = true;
+          select.appendChild(opt);
+        });
+        logTerminal(`Detected ${data.drives.length} storage targets.`);
+      } catch (err) {
+        select.innerHTML = '<option value="disk_dump.raw">disk_dump.raw [Mock Forensic Dump]</option>';
+      }
+    }
+    loadDrives();
+
+    function switchTab(mode) {
+      const btnRec = document.getElementById('btnTabRecovery');
+      const btnPurg = document.getElementById('btnTabPurge');
+      if (mode === 'recovery') {
+        btnRec.className = 'border border-cyan-500 bg-cyan-950/40 text-cyan-300 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1';
+        btnPurg.className = 'border border-red-900 bg-red-950/20 text-red-400 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1';
+      } else {
+        btnPurg.className = 'border border-red-500 bg-red-950/60 text-red-300 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1';
+        btnRec.className = 'border border-cyan-950 bg-cyan-950/20 text-cyan-500 py-2.5 text-xs font-bold rounded flex items-center justify-center space-x-1';
+      }
+    }
+
+    function setRadar(active, text) {
+      const radar = document.getElementById('radarContainer');
+      const beam = document.getElementById('radarSweepBeam');
+      const txt = document.getElementById('radarStatusText');
+      if (active) {
+        radar.classList.remove('opacity-40');
+        radar.classList.add('opacity-100');
+        beam.classList.remove('hidden');
+        txt.innerText = text;
+      } else {
+        radar.classList.add('opacity-40');
+        beam.classList.add('hidden');
+        txt.innerText = text;
+      }
+    }
+
+    function logTerminal(msg, color="text-emerald-400") {
+      const stream = document.getElementById('terminalStream');
+      const p = document.createElement('p');
+      p.className = color;
+      p.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      stream.appendChild(p);
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    async function triggerCarve(isPostPurge = false) {
+      const target = document.getElementById('driveSelect').value;
+      setRadar(true, "CARVING");
+      logTerminal(`Dispatched raw signature carver on ${target}...`, "text-cyan-400");
+
+      try {
+        const res = await fetch('/api/carve', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({target})
+        });
+        const data = await res.json();
+        setRadar(false, "IDLE");
+
+        if (isPostPurge) {
+          updateEntropy(0.00);
+        } else {
+          updateEntropy(data.live_entropy);
+        }
+        
+        await refreshHexDiff(target);
+
+        const tbody = document.getElementById('artifactTableBody');
+        tbody.innerHTML = '';
+
+        if (!data.artifacts || data.artifacts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-emerald-500 font-bold">0 Artifacts Found. (Zero Retention State)</td></tr>';
+          logTerminal("Carve complete: 0 residual artifacts found.", "text-emerald-300");
+        } else {
+          data.artifacts.forEach(a => {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-emerald-950/30";
+
+            let typeBadge = `<span class="text-white font-bold">${a.type}</span>`;
+            if (a.is_malicious) {
+              typeBadge = `<span class="text-red-400 font-bold">[!] ${a.type} (QUARANTINED)</span>`;
+            }
+
+            let previewBtn = '';
+            if (a.is_image) {
+              previewBtn = `<button onclick="openPreview('${a.filename}')" class="border border-emerald-500 text-emerald-300 hover:bg-emerald-900 text-[10px] px-2 py-1 rounded mr-2">👁️ PREVIEW</button>`;
+            }
+
+            tr.innerHTML = `
+              <td class="py-3">${typeBadge}</td>
+              <td class="text-emerald-400">${a.offset}</td>
+              <td>${a.size}</td>
+              <td>${a.confidence}</td>
+              <td>${a.entropy}</td>
+              <td>
+                ${previewBtn}
+                <a href="/download/${a.filename}" class="border border-cyan-500 text-cyan-300 hover:bg-cyan-900 text-[10px] px-2 py-1 rounded">
+                  DOWNLOAD
+                </a>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+          logTerminal(`Carving success: ${data.artifacts.length} file streams reconstructed!`, "text-yellow-300");
+        }
+      } catch (err) {
+        setRadar(false, "ERROR");
+        logTerminal(`Carver error: ${err}`, "text-red-400");
+      }
+    }
+
+    async function triggerPurge() {
+      const target = document.getElementById('driveSelect').value;
+      if (!confirm(`WARNING: All physical blocks on ${target} will be overwritten with 0x00. Proceed?`)) return;
+
+      setRadar(true, "PURGING");
+      logTerminal(`EXECUTING NIST SP 800-88 PURGE ON ${target}...`, "text-red-400");
+
+      try {
+        const res = await fetch('/api/purge', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({target})
+        });
+        const data = await res.json();
+        setRadar(false, "ZEROED");
+
+        if (data.status === 'success') {
+          updateEntropy(0.00);
+          await refreshHexDiff(target);
+          logTerminal(`[PURGE COMPLETE] Raw hardware overwrite verified. Post-Entropy: 0.00`, "text-emerald-300");
+          triggerCarve(true);
+        } else {
+          logTerminal(`[PURGE BLOCKED] ${data.message}`, "text-red-500");
+        }
+      } catch (err) {
+        setRadar(false, "ERROR");
+        logTerminal(`Purge error: ${err}`, "text-red-400");
+      }
+    }
+
+    async function wipeFile() {
+      const path = document.getElementById('targetPath').value;
+      if (!path) return alert("Please enter a valid file path.");
+      logTerminal(`Shredding file/folder: ${path}...`, "text-yellow-300");
+      const res = await fetch('/api/wipe-file', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path})
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        logTerminal(`Successfully sanitized ${data.purged_count} file(s) and metadata records.`, "text-emerald-400");
+        document.getElementById('targetPath').value = '';
+      } else {
+        logTerminal(`Error: ${data.message}`, "text-red-400");
+      }
+    }
+
+    function toggleHexInspector() {
+      const panel = document.getElementById('hexDiffPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    function updateEntropy(value) {
+      const entropy = Number(value) || 0;
+      document.getElementById('entropyScore').innerText = entropy.toFixed(2);
+      document.getElementById('entropyBar').style.width = `${Math.min((entropy / 8) * 100, 100)}%`;
+    }
+
+    async function refreshHexDiff(target) {
+      try {
+        const response = await fetch(`/api/hexdiff?target=${encodeURIComponent(target)}&_=${Date.now()}`);
+        const data = await response.json();
+        if (data.status === 'success' || data.pre_hex) {
+          document.getElementById('preHexStream').textContent = data.pre_hex;
+          document.getElementById('postHexStream').textContent = data.post_hex;
+        }
+      } catch (e) {}
+    }
+
+    function openPreview(filename) {
+      document.getElementById('previewTitle').innerText = `LIVE RECOVERED PREVIEW: ${filename}`;
+      document.getElementById('previewContent').innerHTML = `<img src="/preview/${filename}" class="max-h-[50vh] rounded border border-emerald-500/40 object-contain shadow-lg">`;
+      document.getElementById('previewModal').classList.remove('hidden');
+    }
+
+    function closePreview() {
+      document.getElementById('previewModal').classList.add('hidden');
+    }
+
+    function downloadReport() {
+      const target = document.getElementById('driveSelect').value;
+      window.open(`/api/report?target=${encodeURIComponent(target)}`, '_blank');
+    }
+  </script>
+</body>
+</html>
