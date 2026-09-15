@@ -1,7 +1,9 @@
-# Core logic file jise hide rakhna hai (laptop par rahegi, Git par nahi jayegi)
+# Core logic file jise hide rakhna hai
+core/carver.py
 carver.py
 
 # Heavy aur environment folders
+.venv/
 venv/
 env/
 __pycache__/
@@ -13,4 +15,7 @@ quarantine/
 *.dd
 *.raw
 *.bin
-reports/*.pdf
+disk_dump.raw
+
+# Sensitive Documents / Certificates
+*.pdf
